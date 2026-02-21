@@ -48,4 +48,8 @@ object PreferenceManager {
     fun isOnboardingComplete(context: Context): Boolean {
         return getPreferences(context).getBoolean(KEY_ONBOARDING_COMPLETE, false)
     }
+
+    fun clearAll(context: Context) {
+        getPreferences(context).edit().clear().apply()
+    }
 }
