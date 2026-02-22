@@ -1,40 +1,75 @@
-# Fin-Pulse: Luxury Finance Tracking
+# Fin-Pulse: The Zero-Friction Finance Experience
 
-Fin-Pulse is a minimalist, high-performance finance manager built with Jetpack Compose. It aims to provide a zero-friction experience for tracking expenses and income using automation and AI.
-
-## 🚀 Key Features
-
-- **Luxury Dark Theme:** An emerald-on-black interface designed for high-end usability.
-- **Smart Notification Listener:** Automatically detects transactions from payment apps like PhonePe, GPay, and Paytm.
-- **AI-Powered Bubble:** When a transaction is detected, a non-intrusive bubble appears for 1-tap confirmation.
-- **AI Training Lab:** A dedicated space where you can teach the app how to read your specific notifications and map UPI IDs to names.
-- **Voice Logging:** Long-press the add button or use the Mic to log expenses via voice commands.
-- **Persistent AI Brain:** Ships with pre-trained patterns to recognize common Indian banking and UPI messages out of the box.
-- **Monitored Apps Control:** Users can choose exactly which apps Fin-Pulse should listen to (e.g., enable GPay, disable WhatsApp).
-
-## ⚠️ Current Status & Limitations
-
-**Note:** This application is currently in **Active Debug/Development** phase.
-
-- **Permissions Required:** The app requires SMS, Notification Access, and Overlay permissions to function. 
-- **Parsing Accuracy:** While getting better, the parser may occasionally fail on highly non-standard message formats.
-- **Device Persistence:** Currently, profile images are stored as URIs. On some Android versions, these URIs may lose permission after a device reboot (Fix in progress).
-- **Manual Corrections:** If the AI guesses wrong (e.g., Spent vs Received), use the AI Training Lab to correct it.
-
-## 🛠 Future Scope
-
-- **Cloud Sync:** Synchronize transactions across multiple devices securely.
-- **Advanced Analytics:** Detailed monthly reports with budget forecasting and savings goals.
-- **Bank Statement Import:** Support for PDF/CSV statement imports for historical data.
-- **Investment Tracking:** Add support for tracking Mutual Funds, Stocks, and Gold.
-- **Recurring Transactions:** Automatic logging for monthly rent, subscriptions, and SIPs.
-
-## 🧪 AI Lab Usage
-
-To improve the app for yourself and others:
-1. Paste a sample message into the **AI Training Lab**.
-2. If it detects incorrectly, use the **Train AI** button to fix the "True/False" status or the "Income/Spend" direction.
-3. The app will remember your choice for all future messages of that format.
+Fin-Pulse is a next-generation personal finance manager that eliminates the primary pain point of expense tracking: **Manual Data Entry**. Built with Jetpack Compose and powered by local AI, Fin-Pulse captures your financial life as it happens, ensuring your balances are always accurate without you ever having to open the app.
 
 ---
-*Created by Avinya - Intelligent Finance for the Modern World.*
+
+## 📥 Download the App
+
+You can download and test the latest build of Fin-Pulse directly from the link below:
+
+👉 **[Download Fin-Pulse APK](ADD_YOUR_LINK_HERE)**
+
+*Note: As this is a pre-release version, you will need to "Allow from Unknown Sources" during installation.*
+
+---
+
+## 💎 Why Fin-Pulse is Different
+
+Most finance apps fail because they require discipline—you have to remember to log every coffee, every commute, and every transfer. Fin-Pulse flips the script:
+
+*   **Proactive, Not Reactive:** Instead of waiting for you to log an expense, Fin-Pulse "listen" for transactions via notifications and SMS, presenting a 1-tap confirmation bubble immediately after a payment.
+*   **Privacy-First Automation:** Unlike apps that scrape your bank accounts via vulnerable APIs, Fin-Pulse works entirely on-device. You choose exactly which apps (PhonePe, GPay, Paytm, etc.) it monitors.
+*   **A "Learning" Brain:** It doesn't just use static rules. Through the AI Training Lab, you teach the app how to read *your* specific bank's language. It learns to map cryptic UPI IDs to human names.
+*   **Luxury Utility:** Designed with a high-end "Emerald-on-Dark" aesthetic, Fin-Pulse treats your data with the elegance of a luxury watch.
+
+---
+
+## 🚀 Core Features in Detail
+
+### 📱 Smart Transaction Bubble
+The heart of the Fin-Pulse experience. When a transaction is detected from your selected apps, a minimalist floating bubble appears.
+*   **Instant Context:** See detected amount and party name at a glance.
+*   **Correct & Confirm:** Quickly toggle between "Spend" or "Income" and confirm the category without leaving your current app.
+*   **Smart Categorization:** Uses an AI prediction engine to guess the category based on the merchant name or description.
+
+### 🧪 AI Training Lab (Your Personal Playground)
+Take control of the automation. The AI Lab allows you to "stress test" the parser.
+*   **Pattern Recognition:** Paste any message to see how the app interprets it.
+*   **Correction Logic:** If the AI misses a name or gets the direction wrong, train it instantly.
+*   **UPI Mapping:** Directly link specific UPI IDs to custom names so they show up correctly every time.
+
+### 🎙️ Voice-Activated Logging
+For cash transactions where there is no notification, simply use the Mic.
+*   **Natural Language:** Say "Spent 500 on dinner at Starbucks" and let the AI extract the amount, description, and category.
+
+### 📊 Insightful Analytics
+View your lifetime spending patterns through high-fidelity glassmorphic visualizations.
+*   **Category Breakdown:** Dynamic pie charts showing where your money is flowing.
+*   **Transaction History:** A clean, searchable list of every digital and cash transaction.
+
+### 🛡️ App Monitor Control
+Full control over your notification stream.
+*   **Selective Listening:** Enable monitoring for PhonePe and GPay while keeping personal messaging apps like WhatsApp private.
+
+---
+
+## ⚠️ Current Status & Debug Notes
+
+Fin-Pulse is currently in an **Active Debug/Development** phase. You may encounter the following:
+
+*   **Permission Reliance:** To function, the app requires *Notification Access*, *SMS Read*, and *Display Over Apps* permissions.
+*   **Edge Case Parsing:** Some non-standard bank SMS formats may require manual training in the AI Lab before they are recognized perfectly.
+*   **Resource Indexing:** If you see Git errors regarding a `nul` file, please refer to the technical fix guide provided in the documentation.
+
+---
+
+## 🛠 Future Roadmap
+
+*   **Cloud Architecture:** Securely sync your data across all your devices.
+*   **Historical Import:** Import months of data instantly via PDF/CSV bank statements.
+*   **Budgeting 2.0:** AI-driven spending alerts and monthly goal tracking.
+*   **Investment Portfolio:** A unified view of your stocks, mutual funds, and assets alongside your liquid cash.
+
+---
+*Intelligent Finance for the Modern World.*
