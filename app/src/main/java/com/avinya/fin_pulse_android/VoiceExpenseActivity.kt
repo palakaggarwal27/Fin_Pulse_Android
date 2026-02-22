@@ -1,8 +1,10 @@
 package com.avinya.fin_pulse_android
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,11 +15,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.avinya.fin_pulse_android.ui.theme.Fin_Pulse_androidTheme
-import com.avinya.fin_pulse_android.ui.theme.FinPulseBackground
 
 /**
  * Activity launched from the home screen widget
@@ -47,6 +48,12 @@ class VoiceExpenseActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Use window flags to ensure this activity feels like a floating dialog, not a full app launch
+        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+        window.addFlags(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH)
+        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        window.setDimAmount(0.5f)
+        
         // Check permission
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -72,7 +79,7 @@ class VoiceExpenseActivity : ComponentActivity() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(FinPulseBackground.copy(alpha = 0.95f)),
+                .background(Color.Transparent),
             contentAlignment = Alignment.Center
         ) {
             if (showVoiceInput && parsedExpense == null) {
@@ -103,7 +110,6 @@ class VoiceExpenseActivity : ComponentActivity() {
                 VoiceExpenseConfirmationDialog(
                     voiceExpense = parsedExpense!!,
                     onConfirm = { confirmedExpense ->
-                        // Log the expense
                         val expense = Expense(
                             amount = confirmedExpense.amount,
                             description = confirmedExpense.description,
@@ -114,14 +120,15 @@ class VoiceExpenseActivity : ComponentActivity() {
                         
                         ExpenseManager.addExpense(context, expense)
                         
+                        // Send refresh broadcast
+                        val refreshIntent = Intent(BubbleService.ACTION_REFRESH_DATA).setPackage(packageName)
+                        sendBroadcast(refreshIntent)
+                        
                         Toast.makeText(
                             context,
                             "Expense logged: ₹${confirmedExpense.amount}",
                             Toast.LENGTH_SHORT
                         ).show()
-                        
-                        // Update widget (optional - refresh last expense)
-                        updateWidget()
                         
                         finish()
                     },
@@ -134,12 +141,5 @@ class VoiceExpenseActivity : ComponentActivity() {
                 )
             }
         }
-    }
-    
-    private fun updateWidget() {
-        // Trigger widget update to show last logged expense
-        val intent = android.content.Intent(this, VoiceExpenseWidgetProvider::class.java)
-        intent.action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
-        sendBroadcast(intent)
     }
 }

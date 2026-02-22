@@ -741,13 +741,26 @@ fun DashboardScreen(
     var transactionToEdit by remember { mutableStateOf<Expense?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var transactionToDelete by remember { mutableStateOf<Expense?>(null) }
+    var showVoiceInput by remember { mutableStateOf(false) }
+    var voiceExpense by remember { mutableStateOf<VoiceExpense?>(null) }
+    var showVoiceConfirmation by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = FinPulseBackground,
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddExpense, containerColor = FinPulseEmerald, contentColor = FinPulseBackground, shape = CircleShape, modifier = Modifier.size(64.dp)) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = "Add", modifier = Modifier.size(32.dp))
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Restore Voice input button
+                VoiceMicButton(
+                    onClick = { showVoiceInput = true }
+                )
+                // Regular add button
+                FloatingActionButton(onClick = onAddExpense, containerColor = FinPulseEmerald, contentColor = FinPulseBackground, shape = CircleShape, modifier = Modifier.size(64.dp)) {
+                    Icon(imageVector = Icons.Filled.Add, contentDescription = "Add", modifier = Modifier.size(32.dp))
+                }
             }
         }
     ) { innerPadding ->
@@ -790,6 +803,50 @@ fun DashboardScreen(
         }
         if (showCategoryDialog && transactionToEdit != null) {
             AlertDialog(onDismissRequest = { showCategoryDialog = false }, containerColor = FinPulseSurface, title = { Text("Change Category", color = Color.White) }, text = { Column { ExpenseManager.getCategories(context).forEach { category -> Button(onClick = { ExpenseManager.updateExpenseCategory(context, transactionToEdit!!.id, category); showCategoryDialog = false; onRefresh() }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f), contentColor = Color.White)) { Text(category) } } } }, confirmButton = { TextButton(onClick = { showCategoryDialog = false }) { Text("Cancel", color = FinPulseEmerald) } })
+        }
+        
+        // Voice input dialog
+        if (showVoiceInput) {
+            VoiceInputDialog(
+                onDismiss = { showVoiceInput = false },
+                onVoiceResult = { recognizedText ->
+                    val parsedExpense = VoiceExpenseParser.parse(recognizedText, context)
+                    if (parsedExpense != null) {
+                        voiceExpense = parsedExpense
+                        showVoiceConfirmation = true
+                        showVoiceInput = false
+                    } else {
+                        android.widget.Toast.makeText(context, "Couldn't understand. Try: 'spent 100 on coffee'", android.widget.Toast.LENGTH_LONG).show()
+                        showVoiceInput = false
+                    }
+                }
+            )
+        }
+        
+        if (showVoiceConfirmation && voiceExpense != null) {
+            VoiceExpenseConfirmationDialog(
+                voiceExpense = voiceExpense!!,
+                onConfirm = { confirmedExpense ->
+                    val expense = Expense(
+                        amount = confirmedExpense.amount,
+                        description = confirmedExpense.description,
+                        category = confirmedExpense.category,
+                        type = "Cash",
+                        isCredit = false
+                    )
+                    ExpenseManager.addExpense(context, expense)
+                    showVoiceConfirmation = false
+                    voiceExpense = null
+                    onRefresh()
+                },
+                onDismiss = {
+                    showVoiceConfirmation = false
+                    voiceExpense = null
+                },
+                onCategoryChange = { newCategory ->
+                    voiceExpense = voiceExpense?.copy(category = newCategory)
+                }
+            )
         }
     }
 }
@@ -836,7 +893,7 @@ fun ProfileSettingsScreen(userName: String, bankBalance: Float, cashOnHand: Floa
 
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply { maximumFractionDigits = 0 }
 
-    Scaffold(modifier = Modifier.fillMaxSize(), containerColor = FinPulseBackground, topBar = { TopAppBar(title = { Text("Profile", color = Color.White) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBackIosNew, contentDescription = "Back", tint = Color.White) } }, actions = { if (!isEditing) { IconButton(onClick = { isEditing = true }) { Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = FinPulseEmerald) } } else { IconButton(onClick = { val newBank = editBank.toFloatOrNull() ?: bankBalance; val newCash = editCash.toFloatOrNull() ?: cashOnHand; val newName = if (editName.isNotBlank()) editName else userName; PreferenceManager.saveUserData(context, newName, newBank, newCash, profileImageUri); onUpdateProfile(newName, newBank, newCash, profileImageUri); isEditing = false }) { Icon(Icons.Filled.Check, contentDescription = "Save", tint = FinPulseEmerald) } } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) }) { innerPadding ->
+    Scaffold(modifier = Modifier.fillMaxSize(), containerColor = FinPulseBackground, topBar = { TopAppBar(title = { Text("Profile", color = Color.White) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBackIosNew, contentDescription = "Back", tint = Color.White) } }, actions = { if (!isEditing) { IconButton(onClick = { isEditing = true }) { Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = FinPulseEmerald) } } else { IconButton(onClick = { val newBank = editBank.toFloatOrNull() ?: bankBalance; val newCash = editCash.toFloatOrNull() ?: cashOnHand; val newName = if (editName.isNotBlank()) editName else userName; PreferenceManager.saveUserData(context, newName, newBank, newCash, profileImageUri); onUpdateProfile(newName, newBank, newCash, PreferenceManager.getProfileImageUri(context)); isEditing = false }) { Icon(Icons.Filled.Check, contentDescription = "Save", tint = FinPulseEmerald) } } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) }) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding).padding(24.dp).fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(modifier = Modifier.size(120.dp).clip(CircleShape).background(FinPulseSurface).border(2.dp, FinPulseEmerald.copy(alpha = 0.5f), CircleShape).clickable { imageLauncher.launch("image/*") }, contentAlignment = Alignment.Center) {
                 if (profileImageUri != null) Image(painter = rememberAsyncImagePainter(profileImageUri), contentDescription = "Profile", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)

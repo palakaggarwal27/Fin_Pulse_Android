@@ -16,7 +16,6 @@ class VoiceExpenseWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val TAG = "VoiceExpenseWidget"
-        const val ACTION_VOICE_INPUT = "com.avinya.fin_pulse_android.ACTION_VOICE_INPUT"
     }
 
     override fun onUpdate(
@@ -25,35 +24,8 @@ class VoiceExpenseWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         Log.d(TAG, "onUpdate called for ${appWidgetIds.size} widgets")
-        
-        // Update each widget instance
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId)
-        }
-    }
-
-    override fun onEnabled(context: Context) {
-        Log.d(TAG, "Widget enabled")
-        // Called when the first widget is created
-    }
-
-    override fun onDisabled(context: Context) {
-        Log.d(TAG, "Widget disabled")
-        // Called when the last widget is removed
-    }
-
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        
-        when (intent.action) {
-            ACTION_VOICE_INPUT -> {
-                Log.d(TAG, "Voice input action received")
-                // Launch voice input activity
-                val voiceIntent = Intent(context, VoiceExpenseActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                }
-                context.startActivity(voiceIntent)
-            }
         }
     }
 
@@ -62,30 +34,39 @@ class VoiceExpenseWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
-        Log.d(TAG, "Updating widget $appWidgetId")
-        
-        // Create intent for voice input
-        val voiceIntent = Intent(context, VoiceExpenseWidgetProvider::class.java).apply {
-            action = ACTION_VOICE_INPUT
+        // Intent to launch VoiceExpenseActivity (Direct Voice Input)
+        val voiceIntent = Intent(context, VoiceExpenseActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        
-        val pendingIntent = PendingIntent.getBroadcast(
+        val voicePendingIntent = PendingIntent.getActivity(
             context,
-            0,
+            1,
             voiceIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+        // Intent to launch MainActivity (Full App)
+        val mainIntent = Intent(context, MainActivity::class.java)
+        val mainPendingIntent = PendingIntent.getActivity(
+            context,
+            2,
+            mainIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         
-        // Build the widget layout
         val views = RemoteViews(context.packageName, R.layout.widget_voice_expense).apply {
-            setOnClickPendingIntent(R.id.widget_mic_button, pendingIntent)
+            // Clicking the App Name "Fin-Pulse" opens the full app
+            setOnClickPendingIntent(R.id.widget_title, mainPendingIntent)
             
-            // Update text
-            setTextViewText(R.id.widget_title, "Fin-Pulse")
-            setTextViewText(R.id.widget_subtitle, "Tap to log expense")
+            // Clicking ANYWHERE else (Mic, Subtitle, or the empty space) opens Voice Input
+            setOnClickPendingIntent(R.id.widget_mic_button, voicePendingIntent)
+            setOnClickPendingIntent(R.id.widget_subtitle, voicePendingIntent)
+            
+            // To make the background area also trigger voice, we'll set it on the root if possible
+            // or just ensure the main elements cover enough area. 
+            // In Android widgets, individual view IDs must be targeted.
         }
         
-        // Update the widget
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 }
