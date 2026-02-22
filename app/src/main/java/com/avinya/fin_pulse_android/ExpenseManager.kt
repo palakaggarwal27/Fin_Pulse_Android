@@ -55,10 +55,10 @@ object ExpenseManager {
     fun isLikelyTransaction(context: Context, text: String): Boolean {
         val lowerText = text.lowercase()
         
-        val pretrainedNon = getPretrainedNonTransactions(context)
+        val pretrainedNon = getPretrainedPatterns(context, "ai_non_transactions.json")
         if (pretrainedNon.any { lowerText.contains(it) }) return false
         
-        val pretrainedConf = getPretrainedConfirmedTransactions(context)
+        val pretrainedConf = getPretrainedPatterns(context, "ai_confirmed_transactions.json")
         if (pretrainedConf.any { lowerText.contains(it) }) return true
 
         val nonTransactions = getNonTransactionPatterns(context)
@@ -74,37 +74,30 @@ object ExpenseManager {
         val lowerText = text.lowercase()
         val pattern = extractPattern(text)
 
-        // Check local learned patterns
+        // 1. Check local learned patterns
         val creditPatterns = getLearnedPatterns(context, KEY_CREDIT_PATTERNS)
         if (creditPatterns.contains(pattern)) return true
         
         val debitPatterns = getLearnedPatterns(context, KEY_DEBIT_PATTERNS)
         if (debitPatterns.contains(pattern)) return false
 
-        // Check pre-trained patterns from assets (if you decide to add them there)
-        val pretrainedCredit = loadFromAssets(context, "ai_credit_patterns.json")
+        // 2. Check pre-trained patterns from assets
+        val pretrainedCredit = getPretrainedPatterns(context, "ai_credit_patterns.json")
         if (pretrainedCredit.any { lowerText.contains(it) }) return true
         
-        val pretrainedDebit = loadFromAssets(context, "ai_debit_patterns.json")
+        val pretrainedDebit = getPretrainedPatterns(context, "ai_debit_patterns.json")
         if (pretrainedDebit.any { lowerText.contains(it) }) return false
 
         return defaultGuess
     }
 
-    // --- Pre-trained knowledge from Assets ---
-    private var cachedPretrainedNon: List<String>? = null
-    private var cachedPretrainedConf: List<String>? = null
+    // --- Pre-trained knowledge Cache ---
+    private val cachedPatterns = mutableMapOf<String, List<String>>()
 
-    private fun getPretrainedNonTransactions(context: Context): List<String> {
-        if (cachedPretrainedNon != null) return cachedPretrainedNon!!
-        cachedPretrainedNon = loadFromAssets(context, "ai_non_transactions.json")
-        return cachedPretrainedNon!!
-    }
-
-    private fun getPretrainedConfirmedTransactions(context: Context): List<String> {
-        if (cachedPretrainedConf != null) return cachedPretrainedConf!!
-        cachedPretrainedConf = loadFromAssets(context, "ai_confirmed_transactions.json")
-        return cachedPretrainedConf!!
+    private fun getPretrainedPatterns(context: Context, fileName: String): List<String> {
+        return cachedPatterns.getOrPut(fileName) {
+            loadFromAssets(context, fileName)
+        }
     }
 
     private fun loadFromAssets(context: Context, fileName: String): List<String> {
@@ -130,18 +123,15 @@ object ExpenseManager {
         val pattern = extractPattern(text)
         if (pattern.isEmpty()) return
         
-        // 1. Confirm it is a transaction
         val currentConf = getConfirmedTransactionPatterns(context).toMutableSet()
         currentConf.add(pattern)
         getPreferences(context).edit().putString(KEY_CONFIRMED_TRANSACTIONS, Gson().toJson(currentConf.toList())).apply()
 
-        // 2. Remove from non-transactions
         val nonTransactions = getNonTransactionPatterns(context).toMutableSet()
         if (nonTransactions.remove(pattern)) {
              getPreferences(context).edit().putString(KEY_NON_TRANSACTIONS, Gson().toJson(nonTransactions.toList())).apply()
         }
 
-        // 3. Train Direction (Credit/Debit)
         val creditPatterns = getLearnedPatterns(context, KEY_CREDIT_PATTERNS).toMutableSet()
         val debitPatterns = getLearnedPatterns(context, KEY_DEBIT_PATTERNS).toMutableSet()
 

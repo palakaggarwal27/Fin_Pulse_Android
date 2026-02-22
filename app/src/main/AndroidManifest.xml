@@ -10,6 +10,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
         tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -58,6 +66,28 @@
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
+        </receiver>
+
+        <!-- Voice Expense Activity (launched from widget) -->
+        <activity
+            android:name=".VoiceExpenseActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask" />
+
+        <!-- Voice Expense Widget -->
+        <receiver
+            android:name=".VoiceExpenseWidgetProvider"
+            android:exported="true"
+            android:label="Fin-Pulse Voice">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.avinya.fin_pulse_android.ACTION_VOICE_INPUT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/voice_expense_widget_info" />
         </receiver>
 
     </application>

@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
                     userName = PreferenceManager.getUserName(context)
                     bankBalance = PreferenceManager.getBankBalance(context)
                     cashOnHand = PreferenceManager.getCashOnHand(context)
+                    profileImageUri = PreferenceManager.getProfileImageUri(context)
                     recentExpenses = ExpenseManager.getExpenses(context)
                 }
 

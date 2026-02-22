@@ -10,6 +10,7 @@ kotlin = "2.0.21"
 composeBom = "2024.09.00"
 coil = "2.5.0"
 gson = "2.10.1"
+mlkit-entity-extraction = "16.0.0-beta5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -29,6 +30,7 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+mlkit-entity-extraction = { group = "com.google.mlkit", name = "entity-extraction", version.ref = "mlkit-entity-extraction" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

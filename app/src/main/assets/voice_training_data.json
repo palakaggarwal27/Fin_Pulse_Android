@@ -1,0 +1,189 @@
+{
+  "training_examples": [
+    {
+      "input": "spent 100 on ice cream",
+      "amount": 100,
+      "description": "Ice cream",
+      "category": "Food & Dining"
+    },
+    {
+      "input": "paid 500 for lunch",
+      "amount": 500,
+      "description": "Lunch",
+      "category": "Food & Dining"
+    },
+    {
+      "input": "bought coffee for 150",
+      "amount": 150,
+      "description": "Coffee",
+      "category": "Food & Dining"
+    },
+    {
+      "input": "50 rupees for auto",
+      "amount": 50,
+      "description": "Auto",
+      "category": "Transport"
+    },
+    {
+      "input": "paid 200 for uber",
+      "amount": 200,
+      "description": "Uber",
+      "category": "Transport"
+    },
+    {
+      "input": "spent 1500 on groceries",
+      "amount": 1500,
+      "description": "Groceries",
+      "category": "Groceries"
+    },
+    {
+      "input": "bought shirt for 800",
+      "amount": 800,
+      "description": "Shirt",
+      "category": "Shopping"
+    },
+    {
+      "input": "paid 300 for movie ticket",
+      "amount": 300,
+      "description": "Movie ticket",
+      "category": "Entertainment"
+    },
+    {
+      "input": "spent 2000 on electricity bill",
+      "amount": 2000,
+      "description": "Electricity bill",
+      "category": "Bills & Utilities"
+    },
+    {
+      "input": "bought medicine for 250",
+      "amount": 250,
+      "description": "Medicine",
+      "category": "Health & Wellness"
+    },
+    {
+      "input": "paid 100 for pen and notebook",
+      "amount": 100,
+      "description": "Pen and notebook",
+      "category": "Stationery"
+    },
+    {
+      "input": "spent 500 on birthday gift",
+      "amount": 500,
+      "description": "Birthday gift",
+      "category": "Gifts"
+    },
+    {
+      "input": "dinner at restaurant 800",
+      "amount": 800,
+      "description": "Dinner at restaurant",
+      "category": "Food & Dining"
+    },
+    {
+      "input": "metro card recharge 500",
+      "amount": 500,
+      "description": "Metro card recharge",
+      "category": "Transport"
+    },
+    {
+      "input": "petrol 2000",
+      "amount": 2000,
+      "description": "Petrol",
+      "category": "Transport"
+    },
+    {
+      "input": "ordered pizza 600",
+      "amount": 600,
+      "description": "Pizza",
+      "category": "Food & Dining"
+    },
+    {
+      "input": "bought vegetables 300",
+      "amount": 300,
+      "description": "Vegetables",
+      "category": "Groceries"
+    },
+    {
+      "input": "gym membership 1500",
+      "amount": 1500,
+      "description": "Gym membership",
+      "category": "Health & Wellness"
+    },
+    {
+      "input": "netflix subscription 499",
+      "amount": 499,
+      "description": "Netflix subscription",
+      "category": "Entertainment"
+    },
+    {
+      "input": "mobile recharge 399",
+      "amount": 399,
+      "description": "Mobile recharge",
+      "category": "Bills & Utilities"
+    }
+  ],
+  "category_keywords": {
+    "Food & Dining": [
+      "food", "lunch", "dinner", "breakfast", "meal", "coffee", "tea", "snack",
+      "restaurant", "cafe", "pizza", "burger", "sandwich", "ice cream", "dessert",
+      "sweet", "cake", "pastry", "starbucks", "dominos", "mcdonalds", "kfc",
+      "subway", "swiggy", "zomato", "food delivery", "biryani", "dosa", "idli"
+    ],
+    "Transport": [
+      "uber", "ola", "taxi", "cab", "auto", "rickshaw", "metro", "bus", "train",
+      "flight", "travel", "petrol", "diesel", "fuel", "parking", "toll", "rapido"
+    ],
+    "Shopping": [
+      "shopping", "clothes", "shirt", "jeans", "shoes", "dress", "amazon",
+      "flipkart", "myntra", "ajio", "mall", "gadget", "phone", "laptop", "electronics"
+    ],
+    "Entertainment": [
+      "movie", "cinema", "theatre", "show", "concert", "game", "netflix", "spotify",
+      "prime", "hotstar", "entertainment", "party", "club", "bar", "pub"
+    ],
+    "Bills & Utilities": [
+      "bill", "electricity", "water", "gas", "internet", "mobile", "phone bill",
+      "recharge", "broadband", "wifi", "utility"
+    ],
+    "Health & Wellness": [
+      "medicine", "pharmacy", "doctor", "hospital", "clinic", "health", "medical",
+      "gym", "fitness", "yoga", "wellness"
+    ],
+    "Groceries": [
+      "grocery", "groceries", "vegetables", "fruits", "milk", "bread", "eggs",
+      "supermarket", "big bazaar", "dmart", "reliance fresh", "more"
+    ],
+    "Gifts": [
+      "gift", "present", "birthday", "anniversary", "celebration"
+    ],
+    "Stationery": [
+      "pen", "pencil", "notebook", "paper", "stationery", "book"
+    ]
+  },
+  "parsing_patterns": {
+    "amount_patterns": [
+      "spent {amount} on {description}",
+      "paid {amount} for {description}",
+      "bought {description} for {amount}",
+      "{amount} rupees for {description}",
+      "{description} {amount}",
+      "ordered {description} {amount}"
+    ],
+    "amount_keywords": [
+      "rupees", "rs", "inr", "₹", "bucks"
+    ],
+    "spending_verbs": [
+      "spent", "paid", "bought", "purchased", "got", "ordered",
+      "spend", "pay", "buy", "purchase", "get", "order"
+    ],
+    "prepositions": [
+      "on", "for", "at", "from"
+    ]
+  },
+  "tips_for_users": [
+    "Say 'spent [amount] on [item]' - Example: 'spent 100 on coffee'",
+    "Say 'paid [amount] for [item]' - Example: 'paid 500 for lunch'",
+    "Say '[item] [amount]' - Example: 'pizza 600'",
+    "Be specific about the item for better category detection",
+    "The AI learns from your corrections to improve over time"
+  ]
+}

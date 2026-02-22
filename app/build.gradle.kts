@@ -47,6 +47,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.gson)
+    implementation(libs.mlkit.entity.extraction)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Fin-Pulse</string>
+    <string name="widget_description">Log expenses with voice input from your home screen</string>
 </resources>

@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
-import android.telephony.SmsMessage
 
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -16,7 +15,6 @@ class SmsReceiver : BroadcastReceiver() {
                 
                 for (message in messages) {
                     val body = message.messageBody
-                    val sender = message.originatingAddress
                     
                     val parsed = TransactionParser.parse(context, body)
                     if (parsed != null) {
