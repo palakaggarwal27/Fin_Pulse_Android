@@ -8,7 +8,7 @@ Fin-Pulse is a next-generation personal finance manager that eliminates the prim
 
 You can download and test the latest build of Fin-Pulse directly from the link below:
 
-👉 **[Download Fin-Pulse APK](ADD_YOUR_LINK_HERE)**
+👉 **[Download Fin-Pulse APK](https://drive.google.com/file/d/1RsJ4O-mf89wbcLUk5baH7UVl_4C9flmc/view?usp=drive_link)**
 
 *Note: As this is a pre-release version, you will need to "Allow from Unknown Sources" during installation.*
 
