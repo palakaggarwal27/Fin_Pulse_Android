@@ -18,7 +18,7 @@ You can download and test the latest build of Fin-Pulse directly from the link b
 
 Most finance apps fail because they require discipline—you have to remember to log every coffee, every commute, and every transfer. Fin-Pulse flips the script:
 
-*   **Proactive, Not Reactive:** Instead of waiting for you to log an expense, Fin-Pulse "listen" for transactions via notifications and SMS, presenting a 1-tap confirmation bubble immediately after a payment.
+*   **Proactive, Not Reactive:** Instead of waiting for you to log an expense, Fin-Pulse "listens" for transactions via notifications and SMS, presenting a 1-tap confirmation bubble immediately after a payment.
 *   **Privacy-First Automation:** Unlike apps that scrape your bank accounts via vulnerable APIs, Fin-Pulse works entirely on-device. You choose exactly which apps (PhonePe, GPay, Paytm, etc.) it monitors.
 *   **A "Learning" Brain:** It doesn't just use static rules. Through the AI Training Lab, you teach the app how to read *your* specific bank's language. It learns to map cryptic UPI IDs to human names.
 *   **Luxury Utility:** Designed with a high-end "Emerald-on-Dark" aesthetic, Fin-Pulse treats your data with the elegance of a luxury watch.
@@ -32,6 +32,12 @@ The heart of the Fin-Pulse experience. When a transaction is detected from your 
 *   **Instant Context:** See detected amount and party name at a glance.
 *   **Correct & Confirm:** Quickly toggle between "Spend" or "Income" and confirm the category without leaving your current app.
 *   **Smart Categorization:** Uses an AI prediction engine to guess the category based on the merchant name or description.
+
+### ⚡ Rapid Cash Widget (Log in 3-4 Seconds)
+Digital payments are easy to track, but cash is where most people lose count. Fin-Pulse includes a **Home Screen Widget** specifically for those "on-the-go" moments.
+*   **One-Tap Mic:** Tap the mic icon on your home screen to trigger instant voice recognition.
+*   **Zero App Opening:** You don't need to find or open the app. A small, elegant dialog appears over your home screen.
+*   **Forget-Proof:** By reducing the logging time to just 3-4 seconds (e.g., "Spent 20 on tea"), you log the expense before you even put your wallet back in your pocket.
 
 ### 🧪 AI Training Lab (Your Personal Playground)
 Take control of the automation. The AI Lab allows you to "stress test" the parser.
