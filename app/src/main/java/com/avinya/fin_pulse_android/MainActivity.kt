@@ -1,8 +1,10 @@
 package com.avinya.fin_pulse_android
 
 import android.Manifest
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -74,6 +76,32 @@ class MainActivity : ComponentActivity() {
                 var profileImageUri by remember { mutableStateOf(PreferenceManager.getProfileImageUri(context)) }
                 var recentExpenses by remember { mutableStateOf(ExpenseManager.getExpenses(context)) }
 
+                // --- Refresh Logic ---
+                fun refreshData() {
+                    android.util.Log.d("FinPulse", "Refreshing all data...")
+                    userName = PreferenceManager.getUserName(context)
+                    bankBalance = PreferenceManager.getBankBalance(context)
+                    cashOnHand = PreferenceManager.getCashOnHand(context)
+                    recentExpenses = ExpenseManager.getExpenses(context)
+                }
+
+                DisposableEffect(Unit) {
+                    val receiver = object : BroadcastReceiver() {
+                        override fun onReceive(context: Context?, intent: Intent?) {
+                            if (intent?.action == BubbleService.ACTION_REFRESH_DATA) {
+                                refreshData()
+                            }
+                        }
+                    }
+                    val filter = IntentFilter(BubbleService.ACTION_REFRESH_DATA)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        registerReceiver(receiver, filter, RECEIVER_EXPORTED)
+                    } else {
+                        registerReceiver(receiver, filter)
+                    }
+                    onDispose { unregisterReceiver(receiver) }
+                }
+
                 // --- Permission Handling ---
                 var showPermissionDialog by remember { mutableStateOf(false) }
                 var permissionCheckKey by remember { mutableStateOf(0) }
@@ -88,37 +116,15 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Check permissions every time the app comes to foreground
                 LaunchedEffect(permissionCheckKey, currentView) {
-                    if (currentView == 2) { // Only check on Dashboard
-                        android.util.Log.d("FinPulse", "Checking all permissions...")
-                        
-                        // 1. Check SMS Permission
+                    if (currentView == 2) { // Dashboard
                         val hasSmsPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
-                        android.util.Log.d("FinPulse", "SMS Permission: $hasSmsPermission")
-                        
-                        if (!hasSmsPermission) {
-                            smsPermissionLauncher.launch(Manifest.permission.RECEIVE_SMS)
-                        }
-                        
-                        // 2. Check Notification Access
                         val isNotificationEnabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")?.contains(context.packageName) == true
-                        android.util.Log.d("FinPulse", "Notification Access: $isNotificationEnabled")
-                        
-                        // 3. Check Overlay Permission
                         val isOverlayEnabled = Settings.canDrawOverlays(context)
-                        android.util.Log.d("FinPulse", "Overlay Permission: $isOverlayEnabled")
-                        
-                        // 4. Check if SMS permission exists
                         val hasSmsReadPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-                        android.util.Log.d("FinPulse", "SMS Read Permission: $hasSmsReadPermission")
                         
-                        // Show dialog if any permission is missing
                         if (!isNotificationEnabled || !isOverlayEnabled || !hasSmsPermission || !hasSmsReadPermission) {
-                            android.util.Log.w("FinPulse", "Missing permissions - showing dialog")
                             showPermissionDialog = true
-                        } else {
-                            android.util.Log.i("FinPulse", "All permissions granted!")
                         }
                     }
                 }
@@ -145,12 +151,7 @@ class MainActivity : ComponentActivity() {
                                 val cashF = cash.toFloatOrNull() ?: 0f
                                 PreferenceManager.saveUserData(context, name, bankF, cashF, imageUri)
                                 PreferenceManager.setOnboardingComplete(context, true)
-
-                                userName = name
-                                bankBalance = bankF
-                                cashOnHand = cashF
-                                profileImageUri = imageUri
-                                recentExpenses = ExpenseManager.getExpenses(context)
+                                refreshData()
                                 currentView = 2
                             }
                         )
@@ -165,11 +166,7 @@ class MainActivity : ComponentActivity() {
                             onProfileClick = { currentView = 3 },
                             onAddExpense = { currentView = 4 },
                             onShowAnalytics = { currentView = 5 },
-                            onRefresh = { 
-                                recentExpenses = ExpenseManager.getExpenses(context)
-                                bankBalance = PreferenceManager.getBankBalance(context)
-                                cashOnHand = PreferenceManager.getCashOnHand(context)
-                            }
+                            onRefresh = { refreshData() }
                         )
                     }
                     3 -> {
@@ -188,13 +185,11 @@ class MainActivity : ComponentActivity() {
                             onDeleteAccount = {
                                 PreferenceManager.clearAll(context)
                                 ExpenseManager.clearAll(context)
-                                userName = ""
-                                bankBalance = 0f
-                                cashOnHand = 0f
-                                profileImageUri = null
-                                recentExpenses = emptyList()
+                                refreshData()
                                 currentView = 0
-                            }
+                            },
+                            onManageApps = { currentView = 6 },
+                            onTrainAI = { currentView = 7 }
                         )
                     }
                     4 -> {
@@ -203,10 +198,7 @@ class MainActivity : ComponentActivity() {
                             currentCash = cashOnHand,
                             onBack = { currentView = 2 },
                             onExpenseAdded = {
-                                userName = PreferenceManager.getUserName(context)
-                                bankBalance = PreferenceManager.getBankBalance(context)
-                                cashOnHand = PreferenceManager.getCashOnHand(context)
-                                recentExpenses = ExpenseManager.getExpenses(context)
+                                refreshData()
                                 currentView = 2
                             }
                         )
@@ -215,6 +207,235 @@ class MainActivity : ComponentActivity() {
                         SpendingAnalyticsScreen(
                             expenses = recentExpenses,
                             onBack = { currentView = 2 }
+                        )
+                    }
+                    6 -> {
+                        ManageAppsScreen(onBack = { currentView = 3 })
+                    }
+                    7 -> {
+                        TrainAIScreen(onBack = { currentView = 3 })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TrainAIScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    var testText by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf<ParsedTransaction?>(null) }
+    var isTransaction by remember { mutableStateOf<Boolean?>(null) }
+    
+    var correctedParty by remember { mutableStateOf("") }
+    var correctedIsCredit by remember { mutableStateOf(false) }
+    
+    val currencyFormat = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply { maximumFractionDigits = 0 }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = FinPulseBackground,
+        topBar = {
+            TopAppBar(
+                title = { Text("AI Training Lab", color = Color.White) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBackIosNew, contentDescription = "Back", tint = Color.White) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { innerPadding ->
+        Column(modifier = Modifier.padding(innerPadding).padding(24.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Text(
+                "Paste a sample notification or SMS below to see how Fin-Pulse interprets it and train the AI.",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 14.sp
+            )
+            
+            OutlinedTextField(
+                value = testText,
+                onValueChange = { 
+                    testText = it
+                    if (it.isNotBlank()) {
+                        val parsed = TransactionParser.parse(context, it)
+                        result = parsed
+                        isTransaction = ExpenseManager.isLikelyTransaction(context, it)
+                        correctedParty = parsed?.party ?: ""
+                        correctedIsCredit = parsed?.isCredit ?: false
+                    } else {
+                        result = null
+                        isTransaction = null
+                        correctedParty = ""
+                    }
+                },
+                placeholder = { Text("Paste notification text here...", color = Color.White.copy(alpha = 0.3f)) },
+                modifier = Modifier.fillMaxWidth().height(100.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = FinPulseEmerald, unfocusedBorderColor = Color.White.copy(alpha = 0.2f))
+            )
+
+            if (testText.isNotBlank()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().background(FinPulseSurface.copy(alpha = 0.5f), RoundedCornerShape(20.dp)).border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(20.dp)).padding(20.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (isTransaction == true) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
+                                contentDescription = null,
+                                tint = if (isTransaction == true) FinPulseEmerald else Color(0xFFFF4D4D),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                if (isTransaction == true) "Detected as a Transaction" else "Detected as a Regular Notification",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                        }
+
+                        if (result != null) {
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                            
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column {
+                                    Text("Amount", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                                    Text(currencyFormat.format(result!!.amount), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                }
+                                
+                                Row(
+                                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(FinPulseBackground).padding(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if(!correctedIsCredit) Color(0xFFFF4D4D) else Color.Transparent).clickable { correctedIsCredit = false }.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) { Text("Spend", color = if(!correctedIsCredit) FinPulseBackground else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                                    Box(
+                                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if(correctedIsCredit) FinPulseEmerald else Color.Transparent).clickable { correctedIsCredit = true }.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) { Text("Income", color = if(correctedIsCredit) FinPulseBackground else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                                }
+                            }
+                            
+                            Column {
+                                Text("Correct Party Name", color = FinPulseEmerald, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = correctedParty,
+                                    onValueChange = { correctedParty = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FinPulseEmerald, unfocusedBorderColor = Color.White.copy(alpha = 0.2f))
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { 
+                            ExpenseManager.trainNonTransaction(context, testText)
+                            isTransaction = false
+                            android.widget.Toast.makeText(context, "AI trained: Not a transaction", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4D4D).copy(alpha = 0.2f), contentColor = Color(0xFFFF4D4D)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Mark False", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Button(
+                        onClick = { 
+                            ExpenseManager.trainConfirmedTransaction(context, testText, correctedIsCredit)
+                            if (result?.upiId != null && correctedParty.isNotBlank()) {
+                                ExpenseManager.trainUpiMapping(context, result!!.upiId!!, correctedParty)
+                            }
+                            isTransaction = true
+                            android.widget.Toast.makeText(context, "AI trained successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = FinPulseEmerald.copy(alpha = 0.2f), contentColor = FinPulseEmerald),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Train AI", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManageAppsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val pm = context.packageManager
+    
+    val installedApps = remember {
+        pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            .filter { (it.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0 } 
+            .sortedBy { pm.getApplicationLabel(it).toString().lowercase() }
+    }
+    
+    var allowedPackages by remember { mutableStateOf(PreferenceManager.getAllowedPackages(context).toSet()) }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = FinPulseBackground,
+        topBar = {
+            TopAppBar(
+                title = { Text("Monitor Apps", color = Color.White) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBackIosNew, contentDescription = "Back", tint = Color.White) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { innerPadding ->
+        Column(modifier = Modifier.padding(innerPadding).padding(24.dp).fillMaxSize()) {
+            Text(
+                "Select apps from which you want Fin-Pulse to automatically detect transactions.",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(installedApps) { app ->
+                    val isChecked = allowedPackages.contains(app.packageName)
+                    val label = pm.getApplicationLabel(app).toString()
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(FinPulseSurface.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                            .border(0.5.dp, if(isChecked) FinPulseEmerald.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                            .clickable {
+                                val newSet = allowedPackages.toMutableSet()
+                                if (isChecked) newSet.remove(app.packageName) else newSet.add(app.packageName)
+                                allowedPackages = newSet
+                                PreferenceManager.saveAllowedPackages(context, newSet.toList())
+                            }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = rememberAsyncImagePainter(pm.getApplicationIcon(app)),
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(label, color = Color.White, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Checkbox(
+                            checked = isChecked,
+                            onCheckedChange = {
+                                val newSet = allowedPackages.toMutableSet()
+                                if (isChecked) newSet.remove(app.packageName) else newSet.add(app.packageName)
+                                allowedPackages = newSet
+                                PreferenceManager.saveAllowedPackages(context, newSet.toList())
+                            },
+                            colors = CheckboxDefaults.colors(checkedColor = FinPulseEmerald, uncheckedColor = Color.White.copy(alpha = 0.2f), checkmarkColor = FinPulseBackground)
                         )
                     }
                 }
@@ -433,12 +654,10 @@ fun AddExpenseScreen(currentBank: Float, currentCash: Float, onBack: () -> Unit,
 fun SpendingAnalyticsScreen(expenses: List<Expense>, onBack: () -> Unit) {
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply { maximumFractionDigits = 0 }
     
-    // Pie graph: From first spend to now (lifetime spend)
     val allCategoryTotals = expenses.filter { !it.isCredit }.groupBy { it.category }
         .mapValues { entry -> entry.value.sumOf { it.amount.toDouble() }.toFloat() }
     val totalSpendOverall = allCategoryTotals.values.sum()
 
-    // Activity List: Last 3 months
     val threeMonthsAgo = Calendar.getInstance().apply { add(Calendar.MONTH, -3) }.timeInMillis
     val recentActivity = expenses.filter { it.timestamp >= threeMonthsAgo }
 
@@ -560,40 +779,6 @@ fun DashboardScreen(
                     StatsCard("Cash", currencyFormat.format(cashOnHand), Color(0xFF8B92A1), Modifier.weight(1f))
                 }
             }
-            item {
-                Button(
-                    onClick = {
-                        android.util.Log.d("FinPulse-Test", "Test bubble button clicked")
-                        android.widget.Toast.makeText(context, "Starting test bubble...", android.widget.Toast.LENGTH_SHORT).show()
-                        
-                        val testIntent = Intent(context, BubbleService::class.java)
-                        testIntent.putExtra("amount", 500f)
-                        testIntent.putExtra("party", "Test Merchant")
-                        testIntent.putExtra("method", "UPI")
-                        testIntent.putExtra("upiId", "test@upi")
-                        testIntent.putExtra("isCredit", false)
-                        
-                        try {
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                context.startForegroundService(testIntent)
-                            } else {
-                                context.startService(testIntent)
-                            }
-                            android.util.Log.i("FinPulse-Test", "Test bubble service started successfully")
-                        } catch (e: Exception) {
-                            android.util.Log.e("FinPulse-Test", "Failed to start test bubble", e)
-                            android.widget.Toast.makeText(context, "Error: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB74D), contentColor = FinPulseBackground),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Filled.Settings, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Test Bubble (Debug)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-            }
             item { Text("Recent Activity", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) }
             if (recentExpenses.isEmpty()) item { Text("No transactions yet.", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp) }
             else items(recentExpenses.take(10)) { expense -> TransactionItem(expense = expense, onClick = { transactionToEdit = expense; showCategoryDialog = true }, onLongClick = { transactionToDelete = expense; showDeleteDialog = true }) }
@@ -633,7 +818,7 @@ fun TransactionItem(expense: Expense, onClick: () -> Unit, onLongClick: () -> Un
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileSettingsScreen(userName: String, bankBalance: Float, cashOnHand: Float, profileImageUri: String?, onBack: () -> Unit, onUpdateProfile: (String, Float, Float, String?) -> Unit, onDeleteAccount: () -> Unit) {
+fun ProfileSettingsScreen(userName: String, bankBalance: Float, cashOnHand: Float, profileImageUri: String?, onBack: () -> Unit, onUpdateProfile: (String, Float, Float, String?) -> Unit, onDeleteAccount: () -> Unit, onManageApps: () -> Unit, onTrainAI: () -> Unit) {
     val context = LocalContext.current
     var editName by remember { mutableStateOf(userName) }
     var editBank by remember { mutableStateOf(bankBalance.toString()) }
@@ -676,6 +861,22 @@ fun ProfileSettingsScreen(userName: String, bankBalance: Float, cashOnHand: Floa
                 }
             }
             
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            SettingsMenuButton(
+                icon = Icons.Filled.AppSettingsAlt,
+                label = "Monitor Apps",
+                onClick = onManageApps
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+
+            SettingsMenuButton(
+                icon = Icons.Filled.AutoAwesome,
+                label = "AI Training Lab",
+                onClick = onTrainAI
+            )
+            
             Spacer(modifier = Modifier.weight(1f))
             
             TextButton(onClick = { showDeleteConfirm = true }, colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF4D4D))) {
@@ -702,6 +903,28 @@ fun ProfileSettingsScreen(userName: String, bankBalance: Float, cashOnHand: Floa
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", color = Color.White) }
             }
         )
+    }
+}
+
+@Composable
+fun SettingsMenuButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .background(FinPulseSurface, RoundedCornerShape(16.dp))
+            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = FinPulseEmerald)
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(label, color = Color.White, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.weight(1f))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.3f))
+        }
     }
 }
 
@@ -765,21 +988,10 @@ fun GlassmorphicBalanceCard(label: String, value: String, onValueChange: (String
 fun PermissionCheckerDialog(onDismiss: () -> Unit, onRecheckPermissions: () -> Unit) {
     val context = LocalContext.current
     
-    // Check each permission's current status
     val hasSmsPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
     val hasSmsReadPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
     val hasNotificationAccess = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")?.contains(context.packageName) == true
     val hasOverlayPermission = Settings.canDrawOverlays(context)
-    
-    // Check if NotificationListenerService is actually running
-    val isListenerServiceRunning = try {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-        activityManager.getRunningServices(Integer.MAX_VALUE).any { 
-            it.service.className == "com.avinya.fin_pulse_android.NotificationService" 
-        }
-    } catch (e: Exception) {
-        false
-    }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -795,194 +1007,68 @@ fun PermissionCheckerDialog(onDismiss: () -> Unit, onRecheckPermissions: () -> U
             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                // SMS Permission
                 PermissionItem(
                     title = "SMS Access",
                     description = "Read payment SMS from banks",
                     isGranted = hasSmsPermission && hasSmsReadPermission,
                     onClick = {
-                        android.util.Log.d("FinPulse", "User clicked SMS Permission - opening app settings")
-                        android.widget.Toast.makeText(context, "Enable SMS permissions", android.widget.Toast.LENGTH_SHORT).show()
                         try {
                             context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
-                        } catch (e: Exception) {
-                            android.util.Log.e("FinPulse", "Failed to open app settings", e)
-                        }
+                        } catch (e: Exception) { }
                     }
                 )
                 
-                // Notification Access
                 PermissionItem(
                     title = "Notification Access",
-                    description = "Read payment notifications from apps like PhonePe, TrueCaller",
+                    description = "Read payment notifications from apps like PhonePe, Google Pay",
                     isGranted = hasNotificationAccess,
                     onClick = {
-                        android.util.Log.d("FinPulse", "User clicked Notification Access - opening notification listener settings")
-                        android.widget.Toast.makeText(context, "Find and enable Fin-Pulse", android.widget.Toast.LENGTH_LONG).show()
                         try {
                             context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
-                        } catch (e: Exception) {
-                            android.util.Log.e("FinPulse", "Failed to open notification settings", e)
-                        }
+                        } catch (e: Exception) { }
                     }
                 )
                 
-                // Overlay Permission
                 PermissionItem(
                     title = "Display Over Apps",
                     description = "Show bubble overlay when payment is detected",
                     isGranted = hasOverlayPermission,
                     onClick = {
-                        android.util.Log.d("FinPulse", "User clicked Display Over Apps - opening overlay settings")
-                        android.widget.Toast.makeText(context, "Enable 'Allow display over other apps'", android.widget.Toast.LENGTH_LONG).show()
                         try {
                             context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
-                        } catch (e: Exception) {
-                            android.util.Log.e("FinPulse", "Failed to open overlay settings", e)
-                        }
+                        } catch (e: Exception) { }
                     }
                 )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Service Status Indicator
-                if (hasNotificationAccess) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                if (isListenerServiceRunning) FinPulseEmerald.copy(alpha = 0.1f) else Color(0xFFFFB74D).copy(alpha = 0.1f),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .border(
-                                0.5.dp,
-                                if (isListenerServiceRunning) FinPulseEmerald.copy(alpha = 0.3f) else Color(0xFFFFB74D).copy(alpha = 0.3f),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .padding(12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.Top) {
-                            Icon(
-                                if (isListenerServiceRunning) Icons.Filled.Check else Icons.Filled.Error,
-                                contentDescription = null,
-                                tint = if (isListenerServiceRunning) FinPulseEmerald else Color(0xFFFFB74D),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                if (isListenerServiceRunning) 
-                                    "Notification Listener Service is running ✓" 
-                                else 
-                                    "Notification Listener Service not detected. Try toggling it off and on again in settings.",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
-                                lineHeight = 16.sp
-                            )
-                        }
-                    }
-                }
-                
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFFFB74D).copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                        .border(0.5.dp, Color(0xFFFFB74D).copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                        .padding(12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Icon(Icons.Filled.Info, contentDescription = null, tint = Color(0xFFFFB74D), modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "After enabling permissions, tap 'Recheck' to verify everything works. Use the 'Test Bubble' button on dashboard to test.",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                android.util.Log.d("FinPulse", "Rechecking permissions...")
                 onRecheckPermissions()
                 onDismiss()
             }) { 
                 Text("Recheck", color = FinPulseEmerald, fontWeight = FontWeight.Bold) 
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = {
-                android.util.Log.d("FinPulse", "User dismissed permission dialog")
-                onDismiss()
-            }) { 
-                Text("Later", color = Color.White.copy(alpha = 0.6f)) 
             }
         }
     )
 }
 
 @Composable
-fun PermissionItem(
-    title: String,
-    description: String,
-    isGranted: Boolean,
-    onClick: () -> Unit
-) {
+fun PermissionItem(title: String, description: String, isGranted: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                if (isGranted) FinPulseEmerald.copy(alpha = 0.1f) else Color(0xFFFF4D4D).copy(alpha = 0.1f),
-                RoundedCornerShape(12.dp)
-            )
-            .border(
-                0.5.dp,
-                if (isGranted) FinPulseEmerald.copy(alpha = 0.3f) else Color(0xFFFF4D4D).copy(alpha = 0.3f),
-                RoundedCornerShape(12.dp)
-            )
+            .background(if (isGranted) FinPulseEmerald.copy(alpha = 0.1f) else Color(0xFFFF4D4D).copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+            .border(0.5.dp, if (isGranted) FinPulseEmerald.copy(alpha = 0.3f) else Color(0xFFFF4D4D).copy(alpha = 0.3f), RoundedCornerShape(12.dp))
             .clickable(enabled = !isGranted) { onClick() }
             .padding(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    title,
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    description,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 11.sp,
-                    lineHeight = 14.sp
-                )
+                Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(description, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            if (isGranted) {
-                Icon(
-                    Icons.Filled.Check,
-                    contentDescription = "Granted",
-                    tint = FinPulseEmerald,
-                    modifier = Modifier.size(24.dp)
-                )
-            } else {
-                Text(
-                    "Enable",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .background(Color(0xFFFF4D4D).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                )
-            }
+            if (isGranted) Icon(Icons.Filled.Check, null, tint = FinPulseEmerald, modifier = Modifier.size(24.dp))
+            else Text("Enable", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.background(Color(0xFFFF4D4D).copy(alpha = 0.3f), RoundedCornerShape(6.dp)).padding(horizontal = 12.dp, vertical = 6.dp))
         }
     }
 }

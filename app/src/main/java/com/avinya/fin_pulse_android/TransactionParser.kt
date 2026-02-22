@@ -1,5 +1,6 @@
 package com.avinya.fin_pulse_android
 
+import android.content.Context
 import java.util.regex.Pattern
 
 data class ParsedTransaction(
@@ -8,14 +9,14 @@ data class ParsedTransaction(
     val party: String,
     val upiId: String? = null,
     val description: String,
-    val isCredit: Boolean = false
+    var isCredit: Boolean = false
 )
 
 object TransactionParser {
     private val amountRegex = Pattern.compile("(?i)(?:rs\\.?|inr|₹)\\s*([\\d,]+\\.?\\d*)")
     private val upiRegex = Pattern.compile("([\\w.-]+@[\\w.-]+)")
     
-    fun parse(text: String): ParsedTransaction? {
+    fun parse(context: Context, text: String): ParsedTransaction? {
         android.util.Log.d("FinPulse-Parser", "Parsing text: $text")
         
         val amountMatcher = amountRegex.matcher(text)
@@ -30,61 +31,94 @@ object TransactionParser {
             android.util.Log.w("FinPulse-Parser", "Failed to parse amount: $amountStr")
             return null
         }
-        android.util.Log.d("FinPulse-Parser", "Amount found: $amount")
         
-        var method = "UPI"
+        var method = "Digital"
         if (text.contains("UPI", ignoreCase = true) || text.contains("VPA", ignoreCase = true)) method = "UPI"
         else if (text.contains("Card", ignoreCase = true) || text.contains("Debit", ignoreCase = true)) method = "Debit Card"
         else if (text.contains("Credit Card", ignoreCase = true)) method = "Credit Card"
-        android.util.Log.d("FinPulse-Parser", "Payment method: $method")
         
         val upiMatcher = upiRegex.matcher(text)
         val upiId = if (upiMatcher.find()) upiMatcher.group(1) else null
-        if (upiId != null) {
-            android.util.Log.d("FinPulse-Parser", "UPI ID found: $upiId")
-        }
         
-        // Advanced detection for Debit/Spent vs Credit/Received
         val lowerText = text.lowercase()
-        val isCredit = lowerText.contains("received") || 
-                       lowerText.contains("credited") || 
-                       (lowerText.contains("from") && !lowerText.contains("paid"))
-        android.util.Log.d("FinPulse-Parser", "Transaction type: ${if (isCredit) "Credit" else "Debit"}")
+        
+        // Smarter Credit vs Debit detection
+        val creditKeywords = listOf("received", "credited", "added to", "deposited", "incoming", "refund", "cashback", "sent you", "sent to you")
+        val debitKeywords = listOf("paid", "spent", "debited", "transfer to", "withdrawn", "payment to")
+        
+        var isCreditGuess = false
+        
+        // Priority check for "sent you" / "sent to you" which overrides generic "sent"
+        if (lowerText.contains("sent you") || lowerText.contains("sent to you")) {
+            isCreditGuess = true
+        } else if (debitKeywords.any { lowerText.contains(it) }) {
+            isCreditGuess = false
+        } else if (text.contains("sent", ignoreCase = true)) {
+            // Generic "sent" is usually debit
+            isCreditGuess = false
+        } else if (creditKeywords.any { lowerText.contains(it) }) {
+            isCreditGuess = true
+        } else if (lowerText.contains("from") && !lowerText.contains("account")) {
+            isCreditGuess = true
+        }
 
-        // Improved party extraction for various bank formats
-        var party = "Unknown"
-        val keywords = listOf("paid to ", "sent to ", "spent at ", "at ", "to ", "from ", "transfer to ", "info: upi-")
-        for (keyword in keywords) {
-            val index = lowerText.indexOf(keyword)
-            if (index != -1) {
-                val start = index + keyword.length
-                val end = text.indexOfAny(charArrayOf('.', ',', ' ', '-', '\n'), start).let { if (it == -1) text.length else it }
-                party = text.substring(start, end).trim()
-                if (party.isNotEmpty() && party != "me" && party.length > 2) {
-                    android.util.Log.d("FinPulse-Parser", "Party extracted using keyword '$keyword': $party")
-                    break
+        // Apply AI Learning for Credit/Debit
+        val isCredit = ExpenseManager.isCreditTransaction(context, text, isCreditGuess)
+
+        // 1. Try to get learned name for UPI ID
+        var party: String? = upiId?.let { ExpenseManager.getLearnedNameForUpi(context, it) }
+
+        // 2. If no learned name, try extraction
+        if (party == null) {
+            val partyKeywords = if (isCredit) {
+                listOf("from ", "received from ", "credited by ", "by transfer from ", "by ", "sent by ")
+            } else {
+                listOf("paid to ", "sent to ", "spent at ", "transfer to ", "payment to ", "to ", "at ", "info: upi-")
+            }
+
+            for (keyword in partyKeywords) {
+                val index = lowerText.indexOf(keyword)
+                if (index != -1) {
+                    val start = index + keyword.length
+                    val end = text.indexOfAny(charArrayOf('.', ',', ' ', '-', '/', '\n'), start).let { if (it == -1) text.length else it }
+                    val extracted = text.substring(start, end).trim()
+                    
+                    val genericWords = listOf("your", "my", "me", "account", "a/c", "bank", "vpa", "upi")
+                    if (extracted.isNotEmpty() && !genericWords.contains(extracted.lowercase()) && extracted.length > 2) {
+                        party = extracted
+                        break
+                    }
                 }
             }
         }
 
-        // Truecaller specific cleanup (often contains "Spent on...")
-        if (lowerText.contains("spent on")) {
-            val start = lowerText.indexOf("spent on") + 9
-            val end = text.indexOfAny(charArrayOf('.', ',', ' '), start).let { if (it == -1) text.length else it }
-            party = text.substring(start, end).trim()
-            android.util.Log.d("FinPulse-Parser", "Party extracted from Truecaller format: $party")
+        // 3. Fallback for common UPI notification formats
+        if (party == null) {
+            val paidYouIndex = lowerText.indexOf(" paid you")
+            if (paidYouIndex != -1) {
+                party = text.substring(0, paidYouIndex).trim()
+            } else if (lowerText.contains("sent") && lowerText.contains("to you")) {
+                // Handle "Someone sent Rs 100 to you"
+                val sentIndex = lowerText.indexOf("sent")
+                if (sentIndex > 0) {
+                    party = text.substring(0, sentIndex).trim()
+                }
+            }
         }
+
+        // 4. Final fallback: Use UPI ID if available, otherwise "Unknown"
+        val finalParty = party?.uppercase() ?: upiId?.uppercase() ?: "UNKNOWN"
 
         val result = ParsedTransaction(
             amount = amount,
             method = method,
-            party = party.uppercase(),
+            party = finalParty,
             upiId = upiId,
             isCredit = isCredit,
-            description = if (isCredit) "Received ₹$amount from $party" else "Paid ₹$amount to $party"
+            description = if (isCredit) "Received from $finalParty" else "Spent at $finalParty"
         )
         
-        android.util.Log.i("FinPulse-Parser", "Successfully parsed transaction: Amount=${result.amount}, Party=${result.party}, Method=${result.method}, IsCredit=${result.isCredit}")
+        android.util.Log.i("FinPulse-Parser", "Parsed: Amt=$amount, Party=$finalParty, IsCredit=$isCredit")
         return result
     }
 }

@@ -2,6 +2,8 @@ package com.avinya.fin_pulse_android
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 object PreferenceManager {
     private const val PREF_NAME = "FinPulsePrefs"
@@ -10,6 +12,18 @@ object PreferenceManager {
     private const val KEY_CASH_ON_HAND = "cash_on_hand"
     private const val KEY_PROFILE_IMAGE_URI = "profile_image_uri"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
+    private const val KEY_ALLOWED_PACKAGES = "allowed_packages"
+
+    private val defaultAllowedPackages = listOf(
+        "com.phonepe.app", 
+        "com.google.android.apps.nbu.paisa.user", // Google Pay
+        "net.one97.paytm",
+        "com.freecharge.android",
+        "com.mobikwik_new",
+        "com.upi.address.book", // BHIM
+        "com.whatsapp", // Added by default, but user can remove
+        "com.truecaller"
+    )
 
     private fun getPreferences(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -47,6 +61,25 @@ object PreferenceManager {
 
     fun isOnboardingComplete(context: Context): Boolean {
         return getPreferences(context).getBoolean(KEY_ONBOARDING_COMPLETE, false)
+    }
+
+    fun getAllowedPackages(context: Context): List<String> {
+        val json = getPreferences(context).getString(KEY_ALLOWED_PACKAGES, null)
+        return if (json != null) {
+            Gson().fromJson(json, object : TypeToken<List<String>>() {}.type)
+        } else {
+            defaultAllowedPackages
+        }
+    }
+
+    fun saveAllowedPackages(context: Context, packages: List<String>) {
+        val json = Gson().toJson(packages)
+        getPreferences(context).edit().putString(KEY_ALLOWED_PACKAGES, json).apply()
+    }
+
+    fun isPackageAllowed(context: Context, packageName: String): Boolean {
+        val allowed = getAllowedPackages(context)
+        return allowed.contains(packageName)
     }
 
     fun clearAll(context: Context) {

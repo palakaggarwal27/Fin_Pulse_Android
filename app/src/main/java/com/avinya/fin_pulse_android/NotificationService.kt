@@ -19,8 +19,13 @@ class NotificationService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         try {
             val packageName = sbn?.packageName ?: "unknown"
-            android.util.Log.d("FinPulse-Notification", "Notification received from: $packageName")
             
+            // 1. Check if this app is allowed by the user
+            if (!PreferenceManager.isPackageAllowed(this, packageName)) {
+                android.util.Log.d("FinPulse-Notification", "Skipping notification from unallowed package: $packageName")
+                return
+            }
+
             val notification = sbn?.notification ?: return
             val extras = notification.extras
             val title = extras.getString("android.title") ?: ""
@@ -28,12 +33,18 @@ class NotificationService : NotificationListenerService() {
             val bigText = extras.getCharSequence("android.bigText")?.toString() ?: ""
 
             val fullText = "$title $text $bigText"
-            android.util.Log.d("FinPulse-Notification", "Notification text: $fullText")
             
-            val parsed = TransactionParser.parse(fullText)
+            // 2. Initial filter: Must look like a transaction
+            if (!ExpenseManager.isLikelyTransaction(this, fullText)) {
+                android.util.Log.d("FinPulse-Notification", "Filtered out: Not likely a transaction")
+                return
+            }
+
+            // 3. Try to parse
+            val parsed = TransactionParser.parse(this, fullText)
 
             if (parsed != null) {
-                android.util.Log.i("FinPulse-Notification", "Transaction parsed! Amount: ${parsed.amount}, Party: ${parsed.party}, Method: ${parsed.method}")
+                android.util.Log.i("FinPulse-Notification", "Transaction parsed from $packageName! Amount: ${parsed.amount}")
                 
                 val serviceIntent = Intent(this, BubbleService::class.java).apply {
                     putExtra("amount", parsed.amount)
@@ -41,26 +52,19 @@ class NotificationService : NotificationListenerService() {
                     putExtra("method", parsed.method)
                     putExtra("upiId", parsed.upiId)
                     putExtra("isCredit", parsed.isCredit)
+                    putExtra("rawText", fullText)
                 }
-                // Use startForegroundService on Android O+ to comply with requirements
+                
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    android.util.Log.d("FinPulse-Notification", "Starting BubbleService as foreground service")
                     startForegroundService(serviceIntent)
                 } else {
-                    android.util.Log.d("FinPulse-Notification", "Starting BubbleService")
                     startService(serviceIntent)
                 }
-            } else {
-                android.util.Log.d("FinPulse-Notification", "No transaction found in notification text")
             }
         } catch (e: Exception) {
             android.util.Log.e("FinPulse-Notification", "Error processing notification", e)
-            e.printStackTrace()
-            // Don't crash the notification listener service
         }
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        // Not needed for now
-    }
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) {}
 }
