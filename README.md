@@ -49,9 +49,6 @@ High-fidelity glassmorphic visualizations show you the pulse of your spending.
 *   **Categorized Spending:** See exactly how much you spend on food, travel, shopping, etc.
 *   **Transaction Pulse:** A clean, searchable history of every transaction, both digital and cash.
 
-### 🛡️ Monitor Controls
-Complete control over your privacy. Choose which apps trigger the tracking bubble. Enable it for your banking apps and GPay, while keeping personal apps like WhatsApp private.
-
 ---
 
 ## ⚠️ Current Status
