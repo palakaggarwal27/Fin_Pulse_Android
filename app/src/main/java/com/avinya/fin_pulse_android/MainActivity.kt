@@ -95,11 +95,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     val filter = IntentFilter(BubbleService.ACTION_REFRESH_DATA)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        registerReceiver(receiver, filter, RECEIVER_EXPORTED)
-                    } else {
-                        registerReceiver(receiver, filter)
-                    }
+                    ContextCompat.registerReceiver(
+                        context,
+                        receiver,
+                        filter,
+                        ContextCompat.RECEIVER_NOT_EXPORTED
+                    )
                     onDispose { unregisterReceiver(receiver) }
                 }
 
@@ -189,7 +190,6 @@ class MainActivity : ComponentActivity() {
                                 refreshData()
                                 currentView = 0
                             },
-                            onManageApps = { currentView = 6 },
                             onTrainAI = { currentView = 7 }
                         )
                     }
@@ -210,9 +210,6 @@ class MainActivity : ComponentActivity() {
                             onBack = { currentView = 2 }
                         )
                     }
-                    6 -> {
-                        ManageAppsScreen(onBack = { currentView = 3 })
-                    }
                     7 -> {
                         TrainAIScreen(onBack = { currentView = 3 })
                     }
@@ -230,8 +227,11 @@ fun TrainAIScreen(onBack: () -> Unit) {
     var result by remember { mutableStateOf<ParsedTransaction?>(null) }
     var isTransaction by remember { mutableStateOf<Boolean?>(null) }
     
+    // Core data fields for training
     var correctedParty by remember { mutableStateOf("") }
+    var correctedAmount by remember { mutableStateOf("") }
     var correctedIsCredit by remember { mutableStateOf(false) }
+    var correctedDescription by remember { mutableStateOf("") }
     
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply { maximumFractionDigits = 0 }
 
@@ -262,11 +262,15 @@ fun TrainAIScreen(onBack: () -> Unit) {
                         result = parsed
                         isTransaction = ExpenseManager.isLikelyTransaction(context, it)
                         correctedParty = parsed?.party ?: ""
+                        correctedAmount = parsed?.amount?.toString() ?: ""
                         correctedIsCredit = parsed?.isCredit ?: false
+                        correctedDescription = parsed?.description ?: ""
                     } else {
                         result = null
                         isTransaction = null
                         correctedParty = ""
+                        correctedAmount = ""
+                        correctedDescription = ""
                     }
                 },
                 placeholder = { Text("Paste notification text here...", color = Color.White.copy(alpha = 0.3f)) },
@@ -295,39 +299,60 @@ fun TrainAIScreen(onBack: () -> Unit) {
                             )
                         }
 
-                        if (result != null) {
+                        if (isTransaction == true) {
                             HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
                             
+                            // Edit direction
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Column {
-                                    Text("Amount", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
-                                    Text(currencyFormat.format(result!!.amount), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                }
-                                
+                                Text("Direction", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
                                 Row(
                                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(FinPulseBackground).padding(4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
-                                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if(!correctedIsCredit) Color(0xFFFF4D4D) else Color.Transparent).clickable { correctedIsCredit = false }.padding(horizontal = 12.dp, vertical = 6.dp)
+                                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if(!correctedIsCredit) Color(0xFFFF4D4D) else Color.Transparent).clickable { correctedIsCredit = false; correctedDescription = "Spent at ${correctedParty.uppercase()}" }.padding(horizontal = 12.dp, vertical = 6.dp)
                                     ) { Text("Spend", color = if(!correctedIsCredit) FinPulseBackground else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                                     Box(
-                                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if(correctedIsCredit) FinPulseEmerald else Color.Transparent).clickable { correctedIsCredit = true }.padding(horizontal = 12.dp, vertical = 6.dp)
+                                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if(correctedIsCredit) FinPulseEmerald else Color.Transparent).clickable { correctedIsCredit = true; correctedDescription = "Received from ${correctedParty.uppercase()}" }.padding(horizontal = 12.dp, vertical = 6.dp)
                                     ) { Text("Income", color = if(correctedIsCredit) FinPulseBackground else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                                 }
                             }
+
+                            // Edit Amount
+                            OutlinedTextField(
+                                value = correctedAmount,
+                                onValueChange = { correctedAmount = it },
+                                label = { Text("Detected Amount", color = FinPulseEmerald, fontSize = 12.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FinPulseEmerald, unfocusedBorderColor = Color.White.copy(alpha = 0.2f))
+                            )
                             
-                            Column {
-                                Text("Correct Party Name", color = FinPulseEmerald, fontSize = 12.sp)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                OutlinedTextField(
-                                    value = correctedParty,
-                                    onValueChange = { correctedParty = it },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FinPulseEmerald, unfocusedBorderColor = Color.White.copy(alpha = 0.2f))
-                                )
-                            }
+                            // Edit Party Name
+                            OutlinedTextField(
+                                value = correctedParty,
+                                onValueChange = { 
+                                    correctedParty = it
+                                    correctedDescription = if(correctedIsCredit) "Received from ${it.uppercase()}" else "Spent at ${it.uppercase()}"
+                                },
+                                label = { Text(if (result?.upiId != null) "Party Name (UPI: ${result?.upiId})" else "Detected Party Name", color = FinPulseEmerald, fontSize = 12.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FinPulseEmerald, unfocusedBorderColor = Color.White.copy(alpha = 0.2f)),
+                                supportingText = if (result?.upiId != null && correctedParty.isNotBlank() && correctedParty.uppercase() != result?.upiId?.uppercase()) {
+                                    { Text("AI will learn: ${result?.upiId} = $correctedParty", fontSize = 10.sp, color = FinPulseEmerald.copy(alpha = 0.8f)) }
+                                } else null
+                            )
+
+                            // Edit Description
+                            OutlinedTextField(
+                                value = correctedDescription,
+                                onValueChange = { correctedDescription = it },
+                                label = { Text("Final Description", color = FinPulseEmerald, fontSize = 12.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FinPulseEmerald, unfocusedBorderColor = Color.White.copy(alpha = 0.2f))
+                            )
                         }
                     }
                 }
@@ -349,11 +374,14 @@ fun TrainAIScreen(onBack: () -> Unit) {
                     Button(
                         onClick = { 
                             ExpenseManager.trainConfirmedTransaction(context, testText, correctedIsCredit)
-                            if (result?.upiId != null && correctedParty.isNotBlank()) {
+                            // Save UPI mapping if UPI ID exists and user provided a meaningful party name
+                            if (result?.upiId != null && correctedParty.isNotBlank() && correctedParty.uppercase() != result?.upiId?.uppercase()) {
                                 ExpenseManager.trainUpiMapping(context, result!!.upiId!!, correctedParty)
+                                android.widget.Toast.makeText(context, "AI trained! Will remember ${result!!.upiId} = $correctedParty", android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "AI trained successfully!", android.widget.Toast.LENGTH_SHORT).show()
                             }
                             isTransaction = true
-                            android.widget.Toast.makeText(context, "AI trained successfully!", android.widget.Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.weight(1f).height(50.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = FinPulseEmerald.copy(alpha = 0.2f), contentColor = FinPulseEmerald),
@@ -368,83 +396,6 @@ fun TrainAIScreen(onBack: () -> Unit) {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ManageAppsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val pm = context.packageManager
-    
-    val installedApps = remember {
-        pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            .filter { (it.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0 } 
-            .sortedBy { pm.getApplicationLabel(it).toString().lowercase() }
-    }
-    
-    var allowedPackages by remember { mutableStateOf(PreferenceManager.getAllowedPackages(context).toSet()) }
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = FinPulseBackground,
-        topBar = {
-            TopAppBar(
-                title = { Text("Monitor Apps", color = Color.White) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBackIosNew, contentDescription = "Back", tint = Color.White) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { innerPadding ->
-        Column(modifier = Modifier.padding(innerPadding).padding(24.dp).fillMaxSize()) {
-            Text(
-                "Select apps from which you want Fin-Pulse to automatically detect transactions.",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 14.sp
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(installedApps) { app ->
-                    val isChecked = allowedPackages.contains(app.packageName)
-                    val label = pm.getApplicationLabel(app).toString()
-                    
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(FinPulseSurface.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                            .border(0.5.dp, if(isChecked) FinPulseEmerald.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-                            .clickable {
-                                val newSet = allowedPackages.toMutableSet()
-                                if (isChecked) newSet.remove(app.packageName) else newSet.add(app.packageName)
-                                allowedPackages = newSet
-                                PreferenceManager.saveAllowedPackages(context, newSet.toList())
-                            }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = rememberAsyncImagePainter(pm.getApplicationIcon(app)),
-                            contentDescription = null,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(label, color = Color.White, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                        Checkbox(
-                            checked = isChecked,
-                            onCheckedChange = {
-                                val newSet = allowedPackages.toMutableSet()
-                                if (isChecked) newSet.remove(app.packageName) else newSet.add(app.packageName)
-                                allowedPackages = newSet
-                                PreferenceManager.saveAllowedPackages(context, newSet.toList())
-                            },
-                            colors = CheckboxDefaults.colors(checkedColor = FinPulseEmerald, uncheckedColor = Color.White.copy(alpha = 0.2f), checkmarkColor = FinPulseBackground)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
 @Composable
 fun StatsCard(label: String, amount: String, accentColor: Color, modifier: Modifier = Modifier) {
     Box(
@@ -753,11 +704,9 @@ fun DashboardScreen(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Restore Voice input button
                 VoiceMicButton(
                     onClick = { showVoiceInput = true }
                 )
-                // Regular add button
                 FloatingActionButton(onClick = onAddExpense, containerColor = FinPulseEmerald, contentColor = FinPulseBackground, shape = CircleShape, modifier = Modifier.size(64.dp)) {
                     Icon(imageVector = Icons.Filled.Add, contentDescription = "Add", modifier = Modifier.size(32.dp))
                 }
@@ -802,7 +751,39 @@ fun DashboardScreen(
             AlertDialog(onDismissRequest = { showDeleteDialog = false }, containerColor = FinPulseSurface, title = { Text("Delete Entry", color = Color.White) }, text = { Text("Restore balance?", color = Color.White.copy(alpha = 0.7f)) }, confirmButton = { TextButton(onClick = { ExpenseManager.deleteExpense(context, transactionToDelete!!, true); showDeleteDialog = false; onRefresh() }) { Text("Restore", color = FinPulseEmerald) } }, dismissButton = { TextButton(onClick = { ExpenseManager.deleteExpense(context, transactionToDelete!!, false); showDeleteDialog = false; onRefresh() }) { Text("Just Delete", color = Color.White.copy(alpha = 0.6f)) } })
         }
         if (showCategoryDialog && transactionToEdit != null) {
-            AlertDialog(onDismissRequest = { showCategoryDialog = false }, containerColor = FinPulseSurface, title = { Text("Change Category", color = Color.White) }, text = { Column { ExpenseManager.getCategories(context).forEach { category -> Button(onClick = { ExpenseManager.updateExpenseCategory(context, transactionToEdit!!.id, category); showCategoryDialog = false; onRefresh() }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f), contentColor = Color.White)) { Text(category) } } } }, confirmButton = { TextButton(onClick = { showCategoryDialog = false }) { Text("Cancel", color = FinPulseEmerald) } })
+            AlertDialog(
+                onDismissRequest = { showCategoryDialog = false }, 
+                containerColor = FinPulseSurface, 
+                title = { Text("Change Category", color = Color.White) }, 
+                text = { 
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(ExpenseManager.getCategories(context)) { category -> 
+                            Button(
+                                onClick = { 
+                                    ExpenseManager.updateExpenseCategory(context, transactionToEdit!!.id, category)
+                                    showCategoryDialog = false
+                                    onRefresh() 
+                                }, 
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), 
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.White.copy(alpha = 0.05f), 
+                                    contentColor = Color.White
+                                )
+                            ) { 
+                                Text(category) 
+                            } 
+                        } 
+                    }
+                }, 
+                confirmButton = { 
+                    TextButton(onClick = { showCategoryDialog = false }) { 
+                        Text("Cancel", color = FinPulseEmerald) 
+                    } 
+                }
+            )
         }
         
         // Voice input dialog
@@ -876,7 +857,7 @@ fun TransactionItem(expense: Expense, onClick: () -> Unit, onLongClick: () -> Un
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileSettingsScreen(userName: String, bankBalance: Float, cashOnHand: Float, profileImageUri: String?, onBack: () -> Unit, onUpdateProfile: (String, Float, Float, String?) -> Unit, onDeleteAccount: () -> Unit, onManageApps: () -> Unit, onTrainAI: () -> Unit) {
+fun ProfileSettingsScreen(userName: String, bankBalance: Float, cashOnHand: Float, profileImageUri: String?, onBack: () -> Unit, onUpdateProfile: (String, Float, Float, String?) -> Unit, onDeleteAccount: () -> Unit, onTrainAI: () -> Unit) {
     val context = LocalContext.current
     var editName by remember { mutableStateOf(userName) }
     var editBank by remember { mutableStateOf(bankBalance.toString()) }
@@ -920,14 +901,6 @@ fun ProfileSettingsScreen(userName: String, bankBalance: Float, cashOnHand: Floa
             }
             
             Spacer(modifier = Modifier.height(24.dp))
-            
-            SettingsMenuButton(
-                icon = Icons.Filled.AppSettingsAlt,
-                label = "Monitor Apps",
-                onClick = onManageApps
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
 
             SettingsMenuButton(
                 icon = Icons.Filled.AutoAwesome,
@@ -937,7 +910,7 @@ fun ProfileSettingsScreen(userName: String, bankBalance: Float, cashOnHand: Floa
             
             Spacer(modifier = Modifier.weight(1f))
             
-            TextButton(onClick = { showDeleteConfirm = true }, colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF4D4D))) {
+            TextButton(onClick = { showDeleteConfirm = true }, colors = ButtonDefaults.buttonColors(contentColor = Color(0xFFFF4D4D))) {
                 Icon(Icons.Filled.DeleteForever, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Delete Account & Data", fontWeight = FontWeight.Bold)

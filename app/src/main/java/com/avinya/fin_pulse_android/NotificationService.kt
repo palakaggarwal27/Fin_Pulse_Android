@@ -20,9 +20,16 @@ class NotificationService : NotificationListenerService() {
         try {
             val packageName = sbn?.packageName ?: "unknown"
             
-            // 1. Check if this app is allowed by the user
-            if (!PreferenceManager.isPackageAllowed(this, packageName)) {
-                android.util.Log.d("FinPulse-Notification", "Skipping notification from unallowed package: $packageName")
+            // Blacklist for privacy apps - never read notifications from these apps
+            val blacklistedApps = setOf(
+                "com.whatsapp",                // WhatsApp
+                "com.whatsapp.w4b",            // WhatsApp Business
+                "com.google.android.gm"        // Gmail
+            )
+            
+            // Skip blacklisted apps
+            if (blacklistedApps.contains(packageName)) {
+                android.util.Log.d("FinPulse-Notification", "Skipping notification from blacklisted app: $packageName")
                 return
             }
 
@@ -34,13 +41,13 @@ class NotificationService : NotificationListenerService() {
 
             val fullText = "$title $text $bigText"
             
-            // 2. Initial filter: Must look like a transaction
+            // Initial filter: Must look like a transaction
             if (!ExpenseManager.isLikelyTransaction(this, fullText)) {
                 android.util.Log.d("FinPulse-Notification", "Filtered out: Not likely a transaction")
                 return
             }
 
-            // 3. Try to parse
+            // Try to parse
             val parsed = TransactionParser.parse(this, fullText)
 
             if (parsed != null) {

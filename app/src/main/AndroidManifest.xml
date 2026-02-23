@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     
+    <!-- Telephony feature not required (app works without SMS on tablets/ChromeOS) -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />

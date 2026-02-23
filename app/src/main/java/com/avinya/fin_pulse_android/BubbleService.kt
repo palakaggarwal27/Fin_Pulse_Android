@@ -257,7 +257,9 @@ class BubbleService : Service() {
                             if (rawText.isNotEmpty()) {
                                 ExpenseManager.trainConfirmedTransaction(this@BubbleService, rawText, finalIsCredit)
                             }
-                            if (upiId != null && correctedParty.isNotBlank()) {
+                            // Save UPI mapping if UPI ID exists and user has edited the party name
+                            if (upiId != null && correctedParty.isNotBlank() && correctedParty.uppercase() != upiId.uppercase()) {
+                                Log.d(TAG, "Training UPI Mapping: $upiId -> $correctedParty")
                                 ExpenseManager.trainUpiMapping(this@BubbleService, upiId, correctedParty)
                             }
                             ExpenseManager.addExpense(this@BubbleService, Expense(amount = amt, description = desc, category = cat, type = meth, isCredit = finalIsCredit))
@@ -294,13 +296,21 @@ class BubbleService : Service() {
         var selectedMethod by remember { mutableStateOf(if (initialMethod == "Cash") "Cash" else "Digital") }
         var selectedCategory by remember { mutableStateOf("Miscellaneous") }
         var isManualCategory by remember { mutableStateOf(false) }
+        var isManualDescription by remember { mutableStateOf(false) }
         
         val context = LocalContext.current
         val categories = remember(context) { ExpenseManager.getCategories(context) }
         
+        // Keep description synced with party name unless user manually edits it
+        LaunchedEffect(party, isCreditState) {
+            if (!isManualDescription) {
+                description = if (isCreditState) "Received from ${party.uppercase()}" else "Paid to ${party.uppercase()}"
+            }
+        }
+
         LaunchedEffect(party, description, isCreditState) {
             if (!isManualCategory) {
-                val predictorText = if (description.isNotBlank() && description != "Paid to $party") description else party
+                val predictorText = if (description.isNotBlank() && !description.contains("Paid to") && !description.contains("Received from")) description else party
                 selectedCategory = ExpenseManager.predictCategory(context, predictorText, isCreditState)
             }
         }
@@ -310,7 +320,6 @@ class BubbleService : Service() {
             color = FinPulseSurface.copy(alpha = 0.98f), tonalElevation = 16.dp
         ) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Top Row: Type Toggle and Close
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(
                         modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(FinPulseBackground).padding(4.dp),
@@ -321,7 +330,7 @@ class BubbleService : Service() {
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(if (isCreditState == type) (if(type) FinPulseEmerald else Color(0xFFFF4D4D)) else Color.Transparent)
-                                    .clickable { isCreditState = type; if(!isManualCategory) description = if(type) "Received from $party" else "Paid to $party" }
+                                    .clickable { isCreditState = type }
                                     .padding(horizontal = 16.dp, vertical = 6.dp)
                             ) {
                                 Text(label, color = if (isCreditState == type) FinPulseBackground else Color.White.copy(alpha = 0.6f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -331,7 +340,6 @@ class BubbleService : Service() {
                     IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, null, tint = Color.White.copy(alpha = 0.4f)) }
                 }
                 
-                // Detected Text (One Line)
                 if (rawText.isNotEmpty()) {
                     Text(
                         text = "Detected: \"${rawText.replace("\n", " ").trim()}\"", 
@@ -343,7 +351,6 @@ class BubbleService : Service() {
                     )
                 }
 
-                // Amount Field
                 OutlinedTextField(
                     value = amount, 
                     onValueChange = { amount = it }, 
@@ -355,20 +362,21 @@ class BubbleService : Service() {
                     singleLine = true
                 )
                 
-                // Party Name Field
                 OutlinedTextField(
                     value = party, 
                     onValueChange = { party = it }, 
-                    label = { Text("Party Name", fontSize = 12.sp) }, 
+                    label = { Text(if (upiId != null) "Party Name (UPI: $upiId)" else "Party Name", fontSize = 12.sp) }, 
                     modifier = Modifier.fillMaxWidth(), 
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = FinPulseEmerald, unfocusedBorderColor = Color.White.copy(alpha = 0.1f)),
-                    singleLine = true
+                    singleLine = true,
+                    supportingText = if (upiId != null && party.uppercase() != upiId.uppercase()) {
+                        { Text("AI will remember: $upiId = $party", fontSize = 9.sp, color = FinPulseEmerald.copy(alpha = 0.7f)) }
+                    } else null
                 )
 
-                // Description Field
                 OutlinedTextField(
                     value = description, 
-                    onValueChange = { description = it; isManualCategory = true }, 
+                    onValueChange = { description = it; isManualDescription = true }, 
                     label = { Text("Description", fontSize = 12.sp) }, 
                     modifier = Modifier.fillMaxWidth(), 
                     trailingIcon = { Icon(Icons.Filled.Mic, null, tint = FinPulseEmerald, modifier = Modifier.size(20.dp)) }, 
@@ -376,7 +384,6 @@ class BubbleService : Service() {
                     singleLine = true
                 )
                 
-                // Payment Method Toggle
                 Row(modifier = Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(10.dp)).background(FinPulseBackground)) {
                     listOf("Digital", "Cash").forEach { m ->
                         Box(
@@ -390,7 +397,6 @@ class BubbleService : Service() {
                     }
                 }
 
-                // Categories
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
                     items(categories) { cat ->
                         FilterChip(
@@ -403,7 +409,6 @@ class BubbleService : Service() {
                     }
                 }
 
-                // Action Buttons
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
                         onClick = { onDismiss(); removePopup(); removeBubbleHead(); stopSelf() }, 
